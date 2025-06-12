@@ -1,0 +1,109 @@
+-- First, create the database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS `clinic_db`;
+
+-- Use the newly created or existing database
+USE `clinic_db`;
+
+--
+-- Table structure for `AdminTBL`
+--
+CREATE TABLE IF NOT EXISTS `AdminTBL` (
+    `AdminID` INT(11) NOT NULL AUTO_INCREMENT,
+    `FirstName` VARCHAR(100) NOT NULL,
+    `LastName` VARCHAR(100) NOT NULL,
+    `Email` VARCHAR(255) NOT NULL UNIQUE,
+    `Password` VARCHAR(255) NOT NULL,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`AdminID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for `PatientTBL`
+--
+CREATE TABLE IF NOT EXISTS `PatientTBL` (
+    `PatientID` INT(11) NOT NULL AUTO_INCREMENT,
+    `FirstName` VARCHAR(100) NOT NULL,
+    `LastName` VARCHAR(100) NOT NULL,
+    `Email` VARCHAR(255) NOT NULL UNIQUE,
+    `Password` VARCHAR(255) NOT NULL,
+    `Age` INT(3) DEFAULT NULL,
+    `Gender` ENUM('Male', 'Female', 'Other') DEFAULT NULL,
+    `Address` VARCHAR(255) DEFAULT NULL,
+    `ContactNumber` VARCHAR(20) DEFAULT NULL,
+    `MedicalHistory` TEXT DEFAULT NULL,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`PatientID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for `AssistantTBL`
+--
+CREATE TABLE IF NOT EXISTS `AssistantTBL` (
+    `AssistantID` INT(11) NOT NULL AUTO_INCREMENT,
+    `FirstName` VARCHAR(100) NOT NULL,
+    `LastName` VARCHAR(100) NOT NULL,
+    `Email` VARCHAR(255) NOT NULL UNIQUE,
+    `Password` VARCHAR(255) NOT NULL,
+    `Specialization` VARCHAR(255) DEFAULT NULL,
+    `SessionFee` DECIMAL(10, 2) DEFAULT '0.00',
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`AssistantID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for `AppointmentTBL`
+--
+CREATE TABLE IF NOT EXISTS `AppointmentTBL` (
+    `AppointmentID` INT(11) NOT NULL AUTO_INCREMENT,
+    `PatientID` INT(11) NOT NULL,
+    `AssistantID` INT(11) NOT NULL,
+    `AppointmentSchedule` DATETIME NOT NULL,
+    `RoomNumber` VARCHAR(50) DEFAULT NULL,
+    `Status` ENUM('Pending', 'OnGoing', 'Completed', 'Cancelled') NOT NULL DEFAULT 'Pending',
+    `PaymentMethod` ENUM('Cash', 'Online') NOT NULL DEFAULT 'Cash',
+    `ReasonForAppointment` TEXT DEFAULT NULL,
+    `CreatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`AppointmentID`),
+    FOREIGN KEY (`PatientID`) REFERENCES `PatientTBL`(`PatientID`),
+    FOREIGN KEY (`AssistantID`) REFERENCES `AssistantTBL`(`AssistantID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+--
+-- Insert default admin user
+-- Password for 'admin@example.com' is 'password123' (hashed)
+--
+INSERT IGNORE INTO `AdminTBL` (`FirstName`, `LastName`, `Email`, `Password`) VALUES
+('Admin', 'User', 'admin@example.com', '$2y$10$Neu/giACdCgvCbGqWeNYmuP4SUexI62ErRuu6/UQtds24oORlMkkS');
+
+
+--
+-- Add Foreign Key Constraints with ON DELETE CASCADE
+-- This ensures that when a Patient or Assistant is deleted, their associated appointments are also deleted.
+-- IMPORTANT: Run these ALTER TABLE statements AFTER all tables have been created.
+-- Drop existing foreign keys first if re-running or if names might conflict.
+--
+
+-- Remove existing foreign keys if they exist, to avoid errors on re-run
+ALTER TABLE `AppointmentTBL`
+DROP FOREIGN KEY IF EXISTS `appointmenttbl_ibfk_1`,
+DROP FOREIGN KEY IF EXISTS `appointmenttbl_ibfk_2`;
+
+
+-- Add foreign key for PatientID with ON DELETE CASCADE
+ALTER TABLE `AppointmentTBL`
+ADD CONSTRAINT `fk_patient_id_cascade`
+FOREIGN KEY (`PatientID`) REFERENCES `PatientTBL`(`PatientID`) ON DELETE CASCADE;
+
+-- Add foreign key for AssistantID with ON DELETE CASCADE
+ALTER TABLE `AppointmentTBL`
+ADD CONSTRAINT `fk_assistant_id_cascade`
+FOREIGN KEY (`AssistantID`) REFERENCES `AssistantTBL`(`AssistantID`) ON DELETE CASCADE;
+
+-- You can optionally add a default patient or assistant for testing:
+-- Password for these users would also be 'password123' (hashed)
+-- INSERT INTO `PatientTBL` (`FirstName`, `LastName`, `Email`, `Password`, `Age`, `Gender`, `Address`, `ContactNumber`, `MedicalHistory`) VALUES
+-- ('John', 'Doe', 'patient@example.com', '$2y$10$Neu/giACdCgvCbGqWeNYmuP4SUexI62ErRuu6/UQtds24oORlMkkS', 30, 'Male', '123 Patient St', '09123456789', 'No significant history.');
+
+-- INSERT INTO `AssistantTBL` (`FirstName`, `LastName`, `Email`, `Password`, `Specialization`, `SessionFee`) VALUES
+-- ('Jane', 'Smith', 'assistant@example.com', '$2y$10$Neu/giACdCgvCbGqWeNYmuP4SUexI62ErRuu6/UQtds24oORlMkkS', 'General Physician', 500.00);
