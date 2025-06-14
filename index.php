@@ -26,7 +26,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['user_role'])) {
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen font-inter p-4"> <!-- Added p-4 for general page padding -->
     <div class="login-container bg-white p-8 rounded-lg shadow-md w-full max-w-md mx-auto"> <!-- Added mx-auto for horizontal centering -->
-        <h2 class="text-3xl font-bold text-center text-blue-800 mb-6">Welcome to ClinicConnect</h2>
+        <h2 class="text-3xl font-bold text-center text-blue-800 mb-6">Welcome to Online Clinic Appointment Management System</h2>
         <p class="text-center text-gray-600 mb-6">Please log in to your account</p>
 
         <form id="loginForm" action="actions/login.php" method="POST">
