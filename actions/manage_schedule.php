@@ -3,7 +3,7 @@
 session_start();
 require_once '../config/db_connection.php'; // Include the database connection
 
-// Check if user is logged in and is an assistant
+// Ensure user is logged in and is an assistant
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'assistant') {
     $_SESSION['schedule_message'] = 'Unauthorized access.';
     $_SESSION['schedule_message_type'] = 'error';
@@ -12,62 +12,91 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'assistant') {
     exit();
 }
 
+$redirect_url = '../dashboard/assistant/schedule.php'; // Redirect back to assistant's schedule page
+
+$action = $_POST['action'] ?? $_GET['action'] ?? null; // Get action from POST or GET
 $assistant_id = $_SESSION['user_id'];
-$action = $_POST['action'] ?? $_GET['action'] ?? ''; // Get action from POST or GET
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
-    // --- Add Schedule Slot ---
-    $available_date = htmlspecialchars(trim($_POST['available_date'] ?? ''));
-    $start_time = htmlspecialchars(trim($_POST['start_time'] ?? ''));
-    $end_time = htmlspecialchars(trim($_POST['end_time'] ?? ''));
+    // Handle adding a new schedule slot
+    $dayOfWeek = htmlspecialchars(trim($_POST['day_of_week'] ?? ''));
+    $startTime = htmlspecialchars(trim($_POST['start_time'] ?? ''));
+    $endTime = htmlspecialchars(trim($_POST['end_time'] ?? ''));
 
-    if (empty($available_date) || empty($start_time) || empty($end_time)) {
-        $_SESSION['schedule_message'] = 'All date and time fields are required to add a schedule slot.';
+    if (empty($dayOfWeek) || empty($startTime) || empty($endTime)) {
+        $_SESSION['schedule_message'] = 'Day of week, start time, and end time are required.';
         $_SESSION['schedule_message_type'] = 'error';
         $conn->close();
-        header("Location: ../dashboard/assistant/schedule.php");
+        header("Location: " . $redirect_url);
         exit();
     }
 
-    // Validate date is not in the past
-    $current_date = new DateTime();
-    $chosen_date = new DateTime($available_date);
-    if ($chosen_date < $current_date->setTime(0, 0, 0)) { // Compare only dates
-        $_SESSION['schedule_message'] = 'Cannot add schedule for a past date.';
+    // Basic time format validation (can be more robust with regex if needed)
+    if (!preg_match("/^([01]\d|2[0-3]):([0-5]\d)$/", $startTime) || !preg_match("/^([01]\d|2[0-3]):([0-5]\d)$/", $endTime)) {
+        $_SESSION['schedule_message'] = 'Invalid time format. Please use HH:MM.';
         $_SESSION['schedule_message_type'] = 'error';
         $conn->close();
-        header("Location: ../dashboard/assistant/schedule.php");
+        header("Location: " . $redirect_url);
         exit();
     }
 
-    // Validate start time is before end time
-    if ($start_time >= $end_time) {
-        $_SESSION['schedule_message'] = 'Start time must be before end time.';
+    // Convert times to DateTime objects for comparison
+    $start_dt = new DateTime($startTime);
+    $end_dt = new DateTime($endTime);
+
+    if ($start_dt >= $end_dt) {
+        $_SESSION['schedule_message'] = 'End time must be after start time.';
         $_SESSION['schedule_message_type'] = 'error';
         $conn->close();
-        header("Location: ../dashboard/assistant/schedule.php");
+        header("Location: " . $redirect_url);
         exit();
     }
 
-    // Combine date and time for full datetime comparison if needed for overlap logic
-    // For now, we rely on the UNIQUE constraint for preventing exact duplicates
+    // Check for overlapping schedules for the same assistant on the same day
+    $overlap_check_stmt = $conn->prepare("
+        SELECT COUNT(*) FROM AssistantScheduleTBL
+        WHERE AssistantID = ? AND DayOfWeek = ?
+        AND (
+            (? < EndTime AND ? > StartTime) OR
+            (? = StartTime AND ? = EndTime)
+        )
+    ");
 
-    $stmt = $conn->prepare("INSERT INTO AssistantScheduleTBL (AssistantID, AvailableDate, StartTime, EndTime) VALUES (?, ?, ?, ?)");
+    if ($overlap_check_stmt) {
+        $overlap_check_stmt->bind_param("isssss", $assistant_id, $dayOfWeek, $startTime, $endTime, $startTime, $endTime);
+        $overlap_check_stmt->execute();
+        $overlap_result = $overlap_check_stmt->get_result();
+        $overlap_row = $overlap_result->fetch_row();
+        if ($overlap_row[0] > 0) {
+            $_SESSION['schedule_message'] = 'This time slot overlaps with an existing schedule for the selected day.';
+            $_SESSION['schedule_message_type'] = 'error';
+            $overlap_check_stmt->close();
+            $conn->close();
+            header("Location: " . $redirect_url);
+            exit();
+        }
+        $overlap_check_stmt->close();
+    } else {
+        error_log("Failed to prepare overlap check statement: " . $conn->error);
+        $_SESSION['schedule_message'] = 'Database error during schedule check.';
+        $_SESSION['schedule_message_type'] = 'error';
+        $conn->close();
+        header("Location: " . $redirect_url);
+        exit();
+    }
+
+
+    $stmt = $conn->prepare("INSERT INTO AssistantScheduleTBL (AssistantID, DayOfWeek, StartTime, EndTime, IsAvailable) VALUES (?, ?, ?, ?, TRUE)");
     if ($stmt) {
-        $stmt->bind_param("isss", $assistant_id, $available_date, $start_time, $end_time);
+        // 'isss' for int, string, string, string
+        $stmt->bind_param("isss", $assistant_id, $dayOfWeek, $startTime, $endTime);
         if ($stmt->execute()) {
-            $_SESSION['schedule_message'] = 'Availability slot added successfully!';
+            $_SESSION['schedule_message'] = 'Availability added successfully!';
             $_SESSION['schedule_message_type'] = 'success';
         } else {
-            // Check for duplicate entry error specifically (MySQL error code 1062)
-            if ($conn->errno === 1062) {
-                $_SESSION['schedule_message'] = 'Error: This exact time slot is already added for you on this date.';
-                $_SESSION['schedule_message_type'] = 'error';
-            } else {
-                $_SESSION['schedule_message'] = 'Error adding availability: ' . $stmt->error;
-                $_SESSION['schedule_message_type'] = 'error';
-                error_log("Error adding assistant schedule: " . $stmt->error);
-            }
+            $_SESSION['schedule_message'] = 'Error adding availability: ' . $stmt->error;
+            $_SESSION['schedule_message_type'] = 'error';
+            error_log("Error adding assistant schedule: " . $stmt->error);
         }
         $stmt->close();
     } else {
@@ -75,24 +104,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
         $_SESSION['schedule_message_type'] = 'error';
         error_log("Failed to prepare statement for adding schedule: " . $conn->error);
     }
-
-    $conn->close();
-    header("Location: ../dashboard/assistant/schedule.php");
-    exit();
-
 } elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'delete') {
-    // --- Delete Schedule Slot ---
-    $schedule_id = filter_var($_GET['id'] ?? '', FILTER_VALIDATE_INT);
+    // Handle deleting a schedule slot
+    $schedule_id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT);
 
     if (empty($schedule_id)) {
-        $_SESSION['schedule_message'] = 'Invalid schedule ID provided for deletion.';
+        $_SESSION['schedule_message'] = 'Invalid schedule ID provided.';
         $_SESSION['schedule_message_type'] = 'error';
         $conn->close();
-        header("Location: ../dashboard/assistant/schedule.php");
+        header("Location: " . $redirect_url);
         exit();
     }
 
-    // Ensure the slot belongs to the logged-in assistant before deleting
+    // Ensure the schedule slot belongs to the logged-in assistant before deleting
     $stmt = $conn->prepare("DELETE FROM AssistantScheduleTBL WHERE ScheduleID = ? AND AssistantID = ?");
     if ($stmt) {
         $stmt->bind_param("ii", $schedule_id, $assistant_id);
@@ -101,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
                 $_SESSION['schedule_message'] = 'Schedule slot deleted successfully.';
                 $_SESSION['schedule_message_type'] = 'success';
             } else {
-                $_SESSION['schedule_message'] = 'Schedule slot not found or you do not have permission to delete it.';
+                $_SESSION['schedule_message'] = 'Schedule slot not found or does not belong to you.';
                 $_SESSION['schedule_message_type'] = 'error';
             }
         } else {
@@ -115,17 +139,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'add') {
         $_SESSION['schedule_message_type'] = 'error';
         error_log("Failed to prepare statement for deleting schedule: " . $conn->error);
     }
-
-    $conn->close();
-    header("Location: ../dashboard/assistant/schedule.php");
-    exit();
-
 } else {
-    // Invalid action or request method
     $_SESSION['schedule_message'] = 'Invalid request.';
     $_SESSION['schedule_message_type'] = 'error';
-    $conn->close();
-    header("Location: ../dashboard/assistant/schedule.php");
-    exit();
 }
+
+$conn->close();
+header("Location: " . $redirect_url);
+exit();
 ?>

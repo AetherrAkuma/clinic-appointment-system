@@ -31,7 +31,8 @@ if ($stmt) {
 
 // Fetch existing schedule slots for the assistant
 $schedule_slots = [];
-$stmt = $conn->prepare("SELECT ScheduleID, AvailableDate, StartTime, EndTime FROM AssistantScheduleTBL WHERE AssistantID = ? ORDER BY AvailableDate ASC, StartTime ASC");
+// Changed 'AvailableDate' to 'DayOfWeek'
+$stmt = $conn->prepare("SELECT ScheduleID, DayOfWeek, StartTime, EndTime FROM AssistantScheduleTBL WHERE AssistantID = ? ORDER BY FIELD(DayOfWeek, 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), StartTime ASC");
 if ($stmt) {
     $stmt->bind_param("i", $assistant_id);
     $stmt->execute();
@@ -68,9 +69,18 @@ if ($stmt) {
         <form action="../../actions/manage_schedule.php" method="POST">
             <input type="hidden" name="action" value="add">
             <div class="mb-4">
-                <label for="availableDate" class="block text-gray-700 text-sm font-medium mb-2">Available Date</label>
-                <input type="date" id="availableDate" name="available_date"
-                       class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500" required>
+                <label for="dayOfWeek" class="block text-gray-700 text-sm font-medium mb-2">Day of Week</label>
+                <select id="dayOfWeek" name="day_of_week"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500" required>
+                    <option value="">Select Day</option>
+                    <option value="Sunday">Sunday</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                </select>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div>
@@ -105,7 +115,7 @@ if ($stmt) {
                     <thead class="bg-gray-50">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">
-                                Date
+                                Day of Week
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Time Slot
@@ -119,7 +129,7 @@ if ($stmt) {
                         <?php foreach ($schedule_slots as $slot): ?>
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    <?php echo date('F j, Y', strtotime($slot['AvailableDate'])); ?>
+                                    <?php echo htmlspecialchars($slot['DayOfWeek']); ?>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     <?php echo date('h:i A', strtotime($slot['StartTime'])) . ' - ' . date('h:i A', strtotime($slot['EndTime'])); ?>
@@ -183,16 +193,6 @@ if ($stmt) {
             deleteModal.classList.add('hidden');
             slotToDeleteId = null;
         }
-    });
-
-    // Set min date for the date input to today
-    document.addEventListener('DOMContentLoaded', function() {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
-        const day = String(today.getDate()).padStart(2, '0');
-        const minDate = `${year}-${month}-${day}`;
-        document.getElementById('availableDate').setAttribute('min', minDate);
     });
 </script>
 
