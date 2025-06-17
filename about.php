@@ -14,7 +14,7 @@ include_once 'includes/header.php'; // Use the unified header for general pages
     <!-- Team Member 1 -->
     <div class="bg-white p-6 rounded-lg shadow-md text-center">
         <img class="w-32 h-32 rounded-full mx-auto mb-4 object-cover" src="https://placehold.co/128x128/e0e0e0/555555?text=Member+1" alt="Team Member 1">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Member One Name</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Chua, Reymart M.</h2>
         <!-- <p class="text-gray-600 mb-4">Role/Contribution (e.g., Lead Developer)</p> -->
         <a href="https://www.facebook.com/yourprofile1" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-300 ease-in-out">
@@ -26,7 +26,7 @@ include_once 'includes/header.php'; // Use the unified header for general pages
     <!-- Team Member 2 -->
     <div class="bg-white p-6 rounded-lg shadow-md text-center">
         <img class="w-32 h-32 rounded-full mx-auto mb-4 object-cover" src="https://placehold.co/128x128/e0e0e0/555555?text=Member+2" alt="Team Member 2">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Member Two Name</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Ambuyo, Joyce Bernadeth S.</h2>
         <!-- <p class="text-gray-600 mb-4">Role/Contribution (e.g., UI/UX Designer)</p> -->
         <a href="https://www.facebook.com/yourprofile2" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-300 ease-in-out">
@@ -38,7 +38,7 @@ include_once 'includes/header.php'; // Use the unified header for general pages
     <!-- Team Member 3 -->
     <div class="bg-white p-6 rounded-lg shadow-md text-center">
         <img class="w-32 h-32 rounded-full mx-auto mb-4 object-cover" src="https://placehold.co/128x128/e0e0e0/555555?text=Member+3" alt="Team Member 3">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Member Three Name</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Siupan, Ivan S.</h2>
         <!-- <p class="text-gray-600 mb-4">Role/Contribution (e.g., Backend Developer)</p> -->
         <a href="https://www.facebook.com/yourprofile3" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-300 ease-in-out">
@@ -50,7 +50,7 @@ include_once 'includes/header.php'; // Use the unified header for general pages
     <!-- Team Member 4 -->
     <div class="bg-white p-6 rounded-lg shadow-md text-center">
         <img class="w-32 h-32 rounded-full mx-auto mb-4 object-cover" src="https://placehold.co/128x128/e0e0e0/555555?text=Member+4" alt="Team Member 4">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Member Four Name</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Tana, Lara Mhay Claire L.</h2>
         <!-- <p class="text-gray-600 mb-4">Role/Contribution (e.g., Quality Assurance)</p> -->
         <a href="https://www.facebook.com/yourprofile4" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-300 ease-in-out">
@@ -62,7 +62,7 @@ include_once 'includes/header.php'; // Use the unified header for general pages
     <!-- Team Member 5 -->
     <div class="bg-white p-6 rounded-lg shadow-md text-center">
         <img class="w-32 h-32 rounded-full mx-auto mb-4 object-cover" src="https://placehold.co/128x128/e0e0e0/555555?text=Member+5" alt="Team Member 5">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">Member Five Name</h2>
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">Adona, Andrei Joshua A.</h2>
         <!-- <p class="text-gray-600 mb-4">Role/Contribution (e.g., Documentation Specialist)</p> -->
         <a href="https://www.facebook.com/yourprofile5" target="_blank" rel="noopener noreferrer"
            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition duration-300 ease-in-out">
