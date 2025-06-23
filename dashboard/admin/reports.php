@@ -25,11 +25,15 @@ $appointments_by_payment = [
 ];
 $completed_sessions = []; // Array to store completed sessions
 
-// Get filter parameters from GET request
-$filter_patient_doctor = $_GET['patient_doctor_sort'] ?? '';
-$filter_room = $_GET['room_sort'] ?? '';
-$filter_payment = $_GET['payment_sort'] ?? '';
-$filter_fee = $_GET['fee_sort'] ?? '';
+// Get search parameter from GET request
+$search_query = htmlspecialchars(trim($_GET['search_query'] ?? ''));
+
+// Get sorting parameters from GET request (new approach for table headers)
+$sort_patient = $_GET['sort_patient'] ?? '';
+$sort_doctor = $_GET['sort_doctor'] ?? '';
+$sort_room = $_GET['sort_room'] ?? '';
+$sort_payment = $_GET['sort_payment'] ?? '';
+$sort_fee = $_GET['sort_fee'] ?? '';
 
 // Build the base query for completed sessions
 $sql_completed_sessions = "
@@ -56,52 +60,73 @@ $sql_completed_sessions = "
         a.Status = 'Completed'
 ";
 
-// Add ORDER BY clauses based on filters
+$params = [];
+$param_types = "";
+
+// Add search condition (enhanced to use CONCAT for full name search, including reverse order)
+if (!empty($search_query)) {
+    $search_term_like = '%' . $search_query . '%';
+    $keywords_arr = explode(' ', $search_query);
+    $reverse_search_query_like = '';
+
+    // If there's more than one word, create a reverse order search term
+    if (count($keywords_arr) > 1) {
+        $reverse_search_query_like = '%' . implode(' ', array_reverse($keywords_arr)) . '%';
+    } else {
+        // If only one word, the reverse search is the same as the regular search
+        $reverse_search_query_like = $search_term_like;
+    }
+
+    $sql_completed_sessions .= " AND (";
+    // Patient name search: "FirstName LastName" OR "LastName FirstName"
+    $sql_completed_sessions .= "(CONCAT(p.FirstName, ' ', p.LastName) LIKE ? OR CONCAT(p.LastName, ' ', p.FirstName) LIKE ?)";
+    $param_types .= "ss";
+    $params[] = $search_term_like;
+    $params[] = $reverse_search_query_like;
+
+    // Assistant name search: "FirstName LastName" OR "LastName FirstName"
+    $sql_completed_sessions .= " OR (CONCAT(ast.FirstName, ' ', ast.LastName) LIKE ? OR CONCAT(ast.LastName, ' ', ast.FirstName) LIKE ?)";
+    $param_types .= "ss";
+    $params[] = $search_term_like;
+    $params[] = $reverse_search_query_like;
+
+    $sql_completed_sessions .= ")";
+}
+
+// Add ORDER BY clauses based on new header sorting parameters
 $order_by_clauses = [];
 
-switch ($filter_patient_doctor) {
-    case 'patient_asc':
-        $order_by_clauses[] = "p.LastName ASC, p.FirstName ASC";
-        break;
-    case 'patient_desc':
-        $order_by_clauses[] = "p.LastName DESC, p.FirstName DESC";
-        break;
-    case 'doctor_asc':
-        $order_by_clauses[] = "ast.LastName ASC, ast.FirstName ASC";
-        break;
-    case 'doctor_desc':
-        $order_by_clauses[] = "ast.LastName DESC, ast.FirstName DESC";
-        break;
+if ($sort_patient === 'asc') {
+    $order_by_clauses[] = "p.LastName ASC, p.FirstName ASC";
+} elseif ($sort_patient === 'desc') {
+    $order_by_clauses[] = "p.LastName DESC, p.FirstName DESC";
 }
 
-switch ($filter_room) {
-    case 'room_asc':
-        $order_by_clauses[] = "a.RoomNumber ASC";
-        break;
-    case 'room_desc':
-        $order_by_clauses[] = "a.RoomNumber DESC";
-        break;
+if ($sort_doctor === 'asc') {
+    $order_by_clauses[] = "ast.LastName ASC, ast.FirstName ASC";
+} elseif ($sort_doctor === 'desc') {
+    $order_by_clauses[] = "ast.LastName DESC, ast.FirstName DESC";
 }
 
-switch ($filter_payment) {
-    case 'cash_online':
-        $order_by_clauses[] = "a.PaymentMethod ASC"; // Cash before Online alphabetically
-        break;
-    case 'online_cash':
-        $order_by_clauses[] = "a.PaymentMethod DESC"; // Online before Cash alphabetically
-        break;
+if ($sort_room === 'asc') {
+    $order_by_clauses[] = "a.RoomNumber ASC";
+} elseif ($sort_room === 'desc') {
+    $order_by_clauses[] = "a.RoomNumber DESC";
 }
 
-switch ($filter_fee) {
-    case 'fee_highest':
-        $order_by_clauses[] = "ast.SessionFee DESC";
-        break;
-    case 'fee_lowest':
-        $order_by_clauses[] = "ast.SessionFee ASC";
-        break;
+if ($sort_payment === 'asc') {
+    $order_by_clauses[] = "a.PaymentMethod ASC";
+} elseif ($sort_payment === 'desc') {
+    $order_by_clauses[] = "a.PaymentMethod DESC";
 }
 
-// Default order if no filters selected or invalid filters
+if ($sort_fee === 'asc') {
+    $order_by_clauses[] = "ast.SessionFee ASC";
+} elseif ($sort_fee === 'desc') {
+    $order_by_clauses[] = "ast.SessionFee DESC";
+}
+
+// Default order if no specific sorting is applied
 if (empty($order_by_clauses)) {
     $order_by_clauses[] = "a.AppointmentSchedule DESC"; // Default sort by latest
 }
@@ -111,6 +136,14 @@ $sql_completed_sessions .= " ORDER BY " . implode(", ", $order_by_clauses);
 // Fetch Completed Sessions with Patient and Assistant Details
 $stmt = $conn->prepare($sql_completed_sessions);
 if ($stmt) {
+    if (!empty($params)) {
+        // Use call_user_func_array to bind parameters dynamically
+        $bind_names = [$param_types];
+        for ($i = 0; $i < count($params); $i++) {
+            $bind_names[] = &$params[$i];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $bind_names);
+    }
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
@@ -118,7 +151,7 @@ if ($stmt) {
     }
     $stmt->close();
 } else {
-    error_log("Failed to fetch completed sessions with filters: " . $conn->error);
+    error_log("Failed to fetch completed sessions with filters and search: " . $conn->error);
 }
 
 // Fetch other statistics (these don't require filtering by patient/doctor/etc.)
@@ -273,45 +306,17 @@ if ($stmt) {
         </button>
     </div>
 
-    <!-- Filter Form -->
+    <!-- Filter & Search Form -->
     <form action="" method="GET" class="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <div>
-            <label for="patient_doctor_sort" class="block text-gray-700 text-sm font-medium mb-2">Sort by Patient/Doctor Name</label>
-            <select id="patient_doctor_sort" name="patient_doctor_sort" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="">No Sort</option>
-                <option value="patient_asc" <?php echo ($filter_patient_doctor === 'patient_asc') ? 'selected' : ''; ?>>Patient Name (A-Z)</option>
-                <option value="patient_desc" <?php echo ($filter_patient_doctor === 'patient_desc') ? 'selected' : ''; ?>>Patient Name (Z-A)</option>
-                <option value="doctor_asc" <?php echo ($filter_patient_doctor === 'doctor_asc') ? 'selected' : ''; ?>>Doctor Name (A-Z)</option>
-                <option value="doctor_desc" <?php echo ($filter_patient_doctor === 'doctor_desc') ? 'selected' : ''; ?>>Doctor Name (Z-A)</option>
-            </select>
-        </div>
-        <div>
-            <label for="room_sort" class="block text-gray-700 text-sm font-medium mb-2">Sort by Room Number</label>
-            <select id="room_sort" name="room_sort" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="">No Sort</option>
-                <option value="room_asc" <?php echo ($filter_room === 'room_asc') ? 'selected' : ''; ?>>Room Number (A-Z)</option>
-                <option value="room_desc" <?php echo ($filter_room === 'room_desc') ? 'selected' : ''; ?>>Room Number (Z-A)</option>
-            </select>
-        </div>
-        <div>
-            <label for="payment_sort" class="block text-gray-700 text-sm font-medium mb-2">Sort by Payment Method</label>
-            <select id="payment_sort" name="payment_sort" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="">No Sort</option>
-                <option value="cash_online" <?php echo ($filter_payment === 'cash_online') ? 'selected' : ''; ?>>Cash First</option>
-                <option value="online_cash" <?php echo ($filter_payment === 'online_cash') ? 'selected' : ''; ?>>Online First</option>
-            </select>
-        </div>
-        <div>
-            <label for="fee_sort" class="block text-gray-700 text-sm font-medium mb-2">Sort by Session Fee</label>
-            <select id="fee_sort" name="fee_sort" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="">No Sort</option>
-                <option value="fee_highest" <?php echo ($filter_fee === 'fee_highest') ? 'selected' : ''; ?>>Highest to Lowest</option>
-                <option value="fee_lowest" <?php echo ($filter_fee === 'fee_lowest') ? 'selected' : ''; ?>>Lowest to Highest</option>
-            </select>
+            <label for="search_query" class="block text-gray-700 text-sm font-medium mb-2">Search by Name</label>
+            <input type="text" id="search_query" name="search_query"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                   placeholder="Patient or Doctor Name" value="<?php echo htmlspecialchars($search_query); ?>">
         </div>
         <div class="col-span-1 md:col-span-2 lg:col-span-3 xl:col-span-4 flex justify-end">
             <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 ease-in-out">
-                Apply Filters
+                Apply Search
             </button>
         </div>
     </form>
@@ -319,7 +324,7 @@ if ($stmt) {
     <?php if (empty($completed_sessions)): ?>
         <div id="completedSessionsData" class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-4 rounded-md shadow-sm" role="alert">
             <p class="font-bold">No completed sessions found yet.</p>
-            <p>Once appointments are marked 'Completed', they will appear here, or adjust your filters.</p>
+            <p>Once appointments are marked 'Completed', they will appear here, or adjust your filters and search query.</p>
         </div>
     <?php else: ?>
         <div id="completedSessionsData"> <!-- New wrapper div for the data only -->
@@ -335,22 +340,67 @@ if ($stmt) {
                                 Date
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Patient
+                                <?php
+                                $next_patient_sort = ($sort_patient === 'asc') ? 'desc' : 'asc';
+                                $arrow_patient = '';
+                                if ($sort_patient === 'asc') $arrow_patient = '<span class="sort-arrow text-lg font-bold">&#9650;</span>';
+                                if ($sort_patient === 'desc') $arrow_patient = '<span class="sort-arrow text-lg font-bold">&#9660;</span>';
+                                $patient_sort_url = '?search_query=' . urlencode($search_query) . '&sort_patient=' . $next_patient_sort;
+                                ?>
+                                <a href="<?php echo htmlspecialchars($patient_sort_url); ?>" class="flex items-center hover:text-gray-700">
+                                    Patient <?php echo $arrow_patient; ?>
+                                </a>
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Assistant
+                                <?php
+                                $next_doctor_sort = ($sort_doctor === 'asc') ? 'desc' : 'asc';
+                                $arrow_doctor = '';
+                                if ($sort_doctor === 'asc') $arrow_doctor = '<span class="sort-arrow text-lg font-bold">&#9650;</span>';
+                                if ($sort_doctor === 'desc') $arrow_doctor = '<span class="sort-arrow text-lg font-bold">&#9660;</span>';
+                                $doctor_sort_url = '?search_query=' . urlencode($search_query) . '&sort_doctor=' . $next_doctor_sort;
+                                ?>
+                                <a href="<?php echo htmlspecialchars($doctor_sort_url); ?>" class="flex items-center hover:text-gray-700">
+                                    Assistant <?php echo $arrow_doctor; ?>
+                                </a>
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Reason
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Room
+                                <?php
+                                $next_room_sort = ($sort_room === 'asc') ? 'desc' : 'asc';
+                                $arrow_room = '';
+                                if ($sort_room === 'asc') $arrow_room = '<span class="sort-arrow text-lg font-bold">&#9650;</span>';
+                                if ($sort_room === 'desc') $arrow_room = '<span class="sort-arrow text-lg font-bold">&#9660;</span>';
+                                $room_sort_url = '?search_query=' . urlencode($search_query) . '&sort_room=' . $next_room_sort;
+                                ?>
+                                <a href="<?php echo htmlspecialchars($room_sort_url); ?>" class="flex items-center hover:text-gray-700">
+                                    Room <?php echo $arrow_room; ?>
+                                </a>
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Payment
+                                <?php
+                                $next_payment_sort = ($sort_payment === 'asc') ? 'desc' : 'asc';
+                                $arrow_payment = '';
+                                if ($sort_payment === 'asc') $arrow_payment = '<span class="sort-arrow text-lg font-bold">&#9650;</span>';
+                                if ($sort_payment === 'desc') $arrow_payment = '<span class="sort-arrow text-lg font-bold">&#9660;</span>';
+                                $payment_sort_url = '?search_query=' . urlencode($search_query) . '&sort_payment=' . $next_payment_sort;
+                                ?>
+                                <a href="<?php echo htmlspecialchars($payment_sort_url); ?>" class="flex items-center hover:text-gray-700">
+                                    Payment <?php echo $arrow_payment; ?>
+                                </a>
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">
-                                Fee
+                                <?php
+                                $next_fee_sort = ($sort_fee === 'asc') ? 'desc' : 'asc';
+                                $arrow_fee = '';
+                                if ($sort_fee === 'asc') $arrow_fee = '<span class="sort-arrow text-lg font-bold">&#9650;</span>';
+                                if ($sort_fee === 'desc') $arrow_fee = '<span class="sort-arrow text-lg font-bold">&#9660;</span>';
+                                $fee_sort_url = '?search_query=' . urlencode($search_query) . '&sort_fee=' . $next_fee_sort;
+                                ?>
+                                <a href="<?php echo htmlspecialchars($fee_sort_url); ?>" class="flex items-center hover:text-gray-700">
+                                    Fee <?php echo $arrow_fee; ?>
+                                </a>
                             </th>
                         </tr>
                     </thead>
@@ -427,7 +477,7 @@ if ($stmt) {
                             <span class="text-xs text-gray-500">(<?php echo htmlspecialchars($session['PatientContactNumber']); ?>)</span>
                         </div>
                         <div class="text-gray-700 mb-1">
-                            <span class="font-semibold">Doctor:</span> Dr. <?php echo htmlspecialchars($session['AssistantFirstName'] . ' ' . $session['AssistantLastName']); ?>
+                            <span class="font-semibold">Doctor:</span> Dr. <?php echo htmlspecialchars($session['AssistantFirstName'] . ' ' . $session['LastName']); ?>
                             <span class="text-xs text-gray-500">(<?php echo htmlspecialchars($session['Specialization']); ?>)</span>
                         </div>
                         <div class="text-gray-600 mb-1">
@@ -496,6 +546,12 @@ if ($stmt) {
                     th {
                         background: #f3f4f6;
                         font-weight: bold;
+                    }
+                    /* Custom style for sort arrows in print */
+                    .sort-arrow {
+                        font-size: 1.2em !important; /* Make arrows larger */
+                        font-weight: bold !important; /* Make arrows bold */
+                        margin-left: 4px; /* Add some spacing */
                     }
                     /* Ensure table headers repeat on each page */
                     thead { display: table-header-group; }
